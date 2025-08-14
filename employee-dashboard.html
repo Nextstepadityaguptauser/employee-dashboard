@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Multi-Page Employee Dashboard</title>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js" defer></script>
+
+<style>
+  :root{
+    --bg:#0f1724; --panel:#0b1220; --muted:#9db0ff; --card:#0f1b33;
+    --accent1:#7c5cff; --accent2:#00d4ff; --glass: rgba(255,255,255,0.03);
+    --good:#2ad27a; --bad:#ff6b6b; --warn:#ffb86b;
+    --card-radius:14px; --pad:14px;
+    color-scheme: dark;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial;
+    background:
+      radial-gradient(800px 500px at 10% 0%, rgba(124,92,255,0.07), transparent 25%),
+      radial-gradient(700px 500px at 100% 100%, rgba(0,212,255,0.03), transparent 25%),
+      var(--bg);
+    color:#e8eefc;
+    -webkit-font-smoothing:antialiased;
+  }
+  header{
+    display:flex;align-items:center;gap:16px;padding:18px 20px;border-bottom:1px solid rgba(255,255,255,.04);
+    position:sticky;top:0;background:linear-gradient(180deg, rgba(5,8,15,0.6), rgba(5,8,15,0.12));
+    z-index:40;
+  }
+  .logo{width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,var(--accent1),var(--accent2));display:grid;place-items:center;font-weight:800;color:#051028}
+  .brand{font-size:1.15rem;font-weight:700}
+  .subtitle{font-size:.85rem;color:var(--muted);margin-top:2px}
+  .controls{margin-left:auto;display:flex;gap:10px;align-items:center}
+  .btn{background:linear-gradient(90deg,var(--accent1),var(--accent2));border:none;padding:10px 14px;border-radius:12px;color:#051028;font-weight:700;cursor:pointer;box-shadow:0 8px 30px rgba(124,92,255,.14)}
+  .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.06);color:var(--muted);box-shadow:none}
+  .top-filters{display:flex;gap:10px;align-items:center;margin:14px 20px}
+
+  main{max-width:1200px;margin:20px auto;padding:0 20px}
+  .tabs{display:flex;gap:8px;border-radius:12px;overflow:hidden}
+  .tab{padding:10px 12px;background:var(--card);border:1px solid rgba(255,255,255,.03);cursor:pointer;border-radius:10px;color:var(--muted)}
+  .tab.active{background:linear-gradient(90deg,var(--accent1),var(--accent2));color:#051028;font-weight:800;box-shadow:0 8px 30px rgba(124,92,255,.12)}
+
+  .grid{display:grid;gap:14px}
+  @media(min-width:980px){ .grid{grid-template-columns: repeat(12,1fr)} }
+
+  .card{
+    background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    border:1px solid rgba(255,255,255,0.04);
+    padding:var(--pad);border-radius:var(--card-radius);
+  }
+
+  .kpis{grid-column:span 12;display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .kpi{padding:16px}
+  .kpi h4{margin:0;color:#cfdcff;font-size:.85rem}
+  .kpi .val{font-size:1.6rem;font-weight:800;margin-top:6px}
+
+  .panel{grid-column:span 12}
+  .half{grid-column:span 6}
+  .third{grid-column:span 4}
+
+  .search-row{display:flex;gap:10px;align-items:center}
+  .input,select{background:transparent;border:1px solid rgba(255,255,255,.06);padding:10px;border-radius:10px;color:var(--muted);min-width:140px}
+  .small{padding:8px 10px;font-size:.9rem}
+
+  table{width:100%;border-collapse:collapse;font-size:.95rem}
+  th,td{padding:10px;border-bottom:1px solid rgba(255,255,255,.03);text-align:left}
+  th{color:var(--muted);font-weight:700}
+  tr:hover td{background:rgba(255,255,255,.01)}
+  .tag{display:inline-block;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,0.03);color:var(--muted);font-weight:600}
+
+  footer{margin:40px 0 80px;color:var(--muted);text-align:center}
+  .muted{color:var(--muted)}
+  .center{display:grid;place-items:center}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">DB</div>
+  <div>
+    <div class="brand">Employee Multi Dashboard</div>
+    <div class="subtitle">Live from Google Sheets · Tidy tab (long format)</div>
+  </div>
+
+  <div class="controls">
+    <button id="refreshBtn" class="btn small">Refresh</button>
+    <button id="downloadBtn" class="btn ghost small">Download CSV</button>
+  </div>
+</header>
+
+<main>
+  <div class="top-filters card">
+    <div style="display:flex;gap:12px;align-items:center">
+      <div><label class="muted">From</label><br><input id="fromDate" class="input" type="date"></div>
+      <div><label class="muted">To</label><br><input id="toDate" class="input" type="date"></div>
+      <div><label class="muted">Region</label><br>
+        <select id="regionFilter" class="input"><option value="">All Regions</option></select>
+      </div>
+      <div style="min-width:260px"><label class="muted">Employee Search</label><br>
+        <input id="empSearch" class="input" placeholder="Type employee name...">
+      </div>
+    </div>
+  </div>
+
+  <div class="tabs" style="margin:10px 0 16px">
+    <div class="tab active" data-tab="overview">Overview</div>
+    <div class="tab" data-tab="employee">Employee</div>
+    <div class="tab" data-tab="region">Region Comparison</div>
+    <div class="tab" data-tab="hub">Hub Leaderboard</div>
+    <div class="tab" data-tab="settings">Settings</div>
+  </div>
+
+  <!-- GRID -->
+  <section id="overview" class="grid">
+    <div class="kpis card">
+      <div class="card kpi"><h4>Selected Range</h4><div class="val" id="kpiRange">-</div></div>
+      <div class="card kpi"><h4>Total Tasks Counted</h4><div class="val" id="kpiTasks">-</div></div>
+      <div class="card kpi"><h4>Total Points</h4><div class="val" id="kpiPoints">-</div></div>
+      <div class="card kpi"><h4>Completion %</h4><div class="val" id="kpiPct">-</div></div>
+    </div>
+
+    <div class="panel half card">
+      <h3 style="margin:0 0 8px">Completion Trend</h3>
+      <canvas id="trendChart" height="120"></canvas>
+    </div>
+
+    <div class="panel half card">
+      <h3 style="margin:0 0 8px">Top Employees</h3>
+      <canvas id="topChart" height="240"></canvas>
+    </div>
+
+    <div class="panel third card">
+      <h3 style="margin:0 0 8px">Region Breakdown</h3>
+      <canvas id="regionChart" height="180"></canvas>
+    </div>
+
+    <div class="panel two card">
+      <h3 style="margin:0 0 8px">Detailed Leaderboard</h3>
+      <div style="overflow:auto;max-height:420px">
+        <table id="leaderTbl"><thead><tr><th>Employee</th><th>Region</th><th>Points</th><th>Tasks</th><th>Completion %</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Employee Tab -->
+  <section id="employee" class="grid" style="display:none">
+    <div class="panel card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <h3 style="margin:0">Employee Progress</h3>
+          <div class="muted">Search name and click View</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="empNameInput" class="input" placeholder="Search employee and press Enter...">
+          <button id="empViewBtn" class="btn small">View</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel half card">
+      <h4 style="margin-top:0">Employee Summary</h4>
+      <div id="empSummary" class="muted">No employee selected</div>
+    </div>
+
+    <div class="panel half card">
+      <h4 style="margin-top:0">Employee Trend</h4>
+      <canvas id="empTrend" height="180"></canvas>
+    </div>
+
+    <div class="panel card">
+      <h4 style="margin-top:0">Daily Records</h4>
+      <div style="max-height:360px;overflow:auto">
+        <table id="empTable"><thead><tr><th>Date</th><th>Task</th><th>Region</th><th>Score</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Region Tab -->
+  <section id="region" class="grid" style="display:none">
+    <div class="panel card">
+      <h3 style="margin:0">Region Comparison</h3>
+      <div class="muted">Compare completion % across regions in the selected date range.</div>
+    </div>
+
+    <div class="panel half card">
+      <canvas id="regCompare" height="240"></canvas>
+    </div>
+
+    <div class="panel half card">
+      <h4>Region Table</h4>
+      <div style="max-height:420px;overflow:auto">
+        <table id="regTable"><thead><tr><th>Region</th><th>Points</th><th>Tasks</th><th>Completion %</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Hub leaderboard tab -->
+  <section id="hub" class="grid" style="display:none">
+    <div class="panel card">
+      <h3>Hub Leaderboard</h3>
+      <div class="muted">Rank hubs by employee progress aggregated across the selected date range.</div>
+    </div>
+
+    <div class="panel card">
+      <canvas id="hubChart" height="160"></canvas>
+    </div>
+
+    <div class="panel card">
+      <h4>Hub Rankings</h4>
+      <div style="max-height:420px;overflow:auto">
+        <table id="hubTable"><thead><tr><th>Hub</th><th>Avg Completion %</th><th>Total Points</th><th>Tasks</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Settings -->
+  <section id="settings" class="grid" style="display:none">
+    <div class="panel card">
+      <h3>Settings & Info</h3>
+      <p class="muted">This dashboard reads from your Tidy sheet CSV and converts the values into charts.<br>CSV source (Tidy):</p>
+      <p id="srcUrl" class="muted"></p>
+      <p class="muted">Auto-refresh every 5 minutes. Use Refresh button to update immediately.</p>
+    </div>
+  </section>
+
+  <footer>Built with Chart.js • Live from Google Sheets</footer>
+</main>
+
+<script>
+/* ------------------ CONFIG --------------- */
+/* Your published Tidy CSV URL (from your message) */
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRtiAbsA4Q_MtRKQRuvlFVEJM8vWXfpB8ny2EI_9IZ7X_iM8MUKCm8NmlVv4gWwBvqGN_Q9vmkzvrSc/pub?gid=934114892&single=true&output=csv";
+/* ----------------------------------------- */
+
+document.getElementById("srcUrl").textContent = CSV_URL;
+
+/* Global state */
+let RAW_ROWS = [];   // raw objects: {Task,Region,Employee,Date,Score}
+let FILTERED = [];   // filtered by date/region/search
+let CHARTS = {};
+let AUTO_REFRESH_MS = 5 * 60 * 1000;
+let lastLoad = null;
+
+/* Utils */
+function parseCSV(text){
+  // robust CSV parse (handles quoted commas)
+  const rows = [];
+  const re = /(?:,|\n|^)(?:"([^"]*(?:""[^"]*)*)"|([^",\n]*))/g;
+  let match, row = [];
+  let i=0;
+  while ((match = re.exec(text))) {
+    const quoted = match[1];
+    const plain = match[2];
+    const val = quoted !== undefined ? quoted.replace(/""/g, '"') : plain;
+    row.push(val === undefined ? "" : val);
+    const lastChar = text[re.lastIndex - 1];
+    if (lastChar === "\n") { rows.push(row); row = []; }
+    i++; if (i>10000000) break;
+  }
+  if (row.length) rows.push(row);
+  // sometimes regex leaves final incomplete; fallback split
+  if (rows.length === 0) {
+    rows.push(...text.trim().split("\n").map(r => r.split(",")));
+  }
+  return rows;
+}
+
+function csvToObjects(csvText){
+  const rows = csvText.trim().split(/\r?\n/).map(r => {
+    // split respecting quotes: simple approach
+    const cols = [];
+    let cur = ""; let inQ = false;
+    for (let i=0;i<r.length;i++){
+      const ch = r[i];
+      if (ch === '"') { inQ = !inQ; continue; }
+      if (ch === "," && !inQ) { cols.push(cur); cur = ""; continue; }
+      cur += ch;
+    }
+    cols.push(cur);
+    return cols.map(c => c.trim());
+  });
+  const headers = rows.shift();
+  return rows.map(r => {
+    const obj = {};
+    for (let i=0;i<headers.length;i++){
+      const key = headers[i] ? headers[i].trim() : `col${i}`;
+      obj[key] = r[i] !== undefined ? r[i] : "";
+    }
+    // normalize expected keys
+    return {
+      Task: obj["Task"] ?? obj["task"] ?? obj["Daily Task"] ?? obj[headers[0]] ?? "",
+      Region: obj["Region"] ?? obj["region"] ?? obj["Hub"] ?? obj["hub"] ?? obj[headers[1]] ?? "",
+      Employee: obj["Employee"] ?? obj["employee"] ?? obj["Assigned to"] ?? obj[headers[2]] ?? "",
+      Date: obj["Date"] ?? obj["date"] ?? obj[headers[3]] ?? "",
+      Score: obj["Score"] ?? obj["score"] ?? obj[headers[4]] ?? ""
+    };
+  }).map(r => {
+    // Normalize Date to ISO string (yyyy-mm-dd)
+    let d = r.Date;
+    let dateObj = null;
+    if (!d) dateObj = null;
+    else {
+      // sometimes dates are like 8/13/2025 or 2025-08-13
+      const tryD = new Date(d);
+      if (!isNaN(tryD)) dateObj = tryD;
+      else {
+        // try mm/dd/yyyy
+        const parts = d.split(/[\/\-\.]/);
+        if (parts.length >= 3) {
+          const mm = Number(parts[0]), dd = Number(parts[1]), yy = Number(parts[2]);
+          if (!isNaN(mm) && !isNaN(dd) && !isNaN(yy)) dateObj = new Date(yy, mm-1, dd);
+        }
+      }
+    }
+    const iso = dateObj ? dateObj.toISOString().slice(0,10) : d;
+    let score = r.Score === "" ? null : r.Score;
+    if (score !== null) {
+      const s = String(score).trim().toUpperCase();
+      if (s === "NA" || s === "") score = null;
+      else score = Number(s) || 0;
+    }
+    return { Task: r.Task, Region: r.Region, Employee: r.Employee, Date: iso, Score: score };
+  });
+}
+
+/* Fetch & load */
+async function loadData(){
+  try {
+    const res = await fetch(CSV_URL + "&_=" + Date.now());
+    const text = await res.text();
+    const objs = csvToObjects(text);
+    RAW_ROWS = objs;
+    lastLoad = new Date();
+    populateRegionFilter();
+    applyFilters();
+    console.info("Loaded", RAW_ROWS.length, "rows");
+  } catch (e) {
+    console.error("Failed to load CSV", e);
+    alert("Failed to load CSV. Make sure the Tidy sheet is Published to the web and URL is correct.");
+  }
+}
+
+/* Filters & UI */
+function getDateRangeFromUI(){
+  const f = document.getElementById("fromDate").value;
+  const t = document.getElementById("toDate").value;
+  const from = f ? new Date(f + "T00:00:00") : null;
+  const to = t ? new Date(t + "T23:59:59") : null;
+  return {from,to};
+}
+
+function applyFilters(){
+  const {from,to} = getDateRangeFromUI();
+  const region = document.getElementById("regionFilter").value;
+  const q = document.getElementById("empSearch").value.trim().toLowerCase();
+
+  FILTERED = RAW_ROWS.filter(r => {
+    const d = r.Date ? new Date(r.Date + "T00:00:00") : null;
+    if (from && d && d < from) return false;
+    if (to && d && d > to) return false;
+    if (region && region !== "" && r.Region !== region) return false;
+    if (q && q !== "" && !r.Employee.toLowerCase().includes(q)) return false;
+    // keep rows even if Score null (we exclude NA from certain metrics)
+    return true;
+  });
+  renderAll();
+}
+
+/* Populate regions */
+function populateRegionFilter(){
+  const sel = document.getElementById("regionFilter");
+  const set = new Set(RAW_ROWS.map(r=>r.Region).filter(Boolean));
+  sel.innerHTML = "<option value=''>All Regions</option>" + Array.from(set).sort().map(s => `<option>${s}</option>`).join("");
+}
+
+/* Renderers */
+function renderAll(){
+  renderKPIs();
+  renderTrend();
+  renderTopEmployees();
+  renderRegionBreakdown();
+  renderLeaderboard();
+  renderHubLeaderboard();
+  // update settings info
+  document.getElementById("kpiRange").textContent = (() => {
+    const {from,to} = getDateRangeFromUI();
+    if (!from && !to) return "All";
+    const a = from ? from.toLocaleDateString() : "start";
+    const b = to ? to.toLocaleDateString() : "end";
+    return `${a} → ${b}`;
+  })();
+}
+
+function renderKPIs(){
+  const rows = FILTERED.filter(r => r.Score !== null);
+  const tasks = rows.length;
+  const points = rows.reduce((s,r)=> s + (r.Score || 0), 0);
+  const pct = tasks ? (points / tasks * 100).toFixed(1) : "0.0";
+  document.getElementById("kpiTasks").textContent = tasks;
+  document.getElementById("kpiPoints").textContent = points;
+  document.getElementById("kpiPct").textContent = pct + "%";
+}
+
+/* Trend (daily completion %) */
+function renderTrend(){
+  const rows = FILTERED.filter(r=>r.Score!==null);
+  const map = {};
+  rows.forEach(r=>{
+    if (!r.Date) return;
+    if (!map[r.Date]) map[r.Date] = {points:0,tasks:0};
+    map[r.Date].points += (r.Score||0);
+    map[r.Date].tasks += 1;
+  });
+  const arr = Object.keys(map).sort().map(d => ({d, pct: map[d].tasks? map[d].points/map[d].tasks*100:0, points:map[d].points, tasks:map[d].tasks}));
+  const labels = arr.map(x=>x.d);
+  const data = arr.map(x=>Number(x.pct.toFixed(1)));
+  const ctx = document.getElementById("trendChart").getContext("2d");
+  const cfg = { type:'line', data:{ labels, datasets:[{ label:'Completion %', data, borderWidth:3, tension:.3, fill:true, backgroundColor:'rgba(124,92,255,0.14)', borderColor:'#7c5cff', pointRadius:3 }]}, options:{scales:{y:{min:0,max:100, ticks:{callback:v=>v+'%'}}}, plugins:{legend:{display:false}} } };
+  if (CHARTS.trend) { CHARTS.trend.destroy(); CHARTS.trend = null; }
+  CHARTS.trend = new Chart(ctx, cfg);
+}
+
+/* Top employees (bar) */
+function renderTopEmployees(){
+  const rows = FILTERED.filter(r=>r.Score!==null);
+  const byEmp = {};
+  rows.forEach(r=>{
+    const k = r.Employee || "Unknown";
+    if (!byEmp[k]) byEmp[k] = {points:0,tasks:0,region:r.Region};
+    byEmp[k].points += (r.Score||0);
+    byEmp[k].tasks += 1;
+  });
+  const arr = Object.keys(byEmp).map(k=>({name:k,points:byEmp[k].points,tasks:byEmp[k].tasks,region:byEmp[k].region}))
+    .sort((a,b)=>b.points-a.points).slice(0,12);
+  const labels = arr.map(x=>x.name);
+  const data = arr.map(x=>x.points);
+  const ctx = document.getElementById("topChart").getContext("2d");
+  if (CHARTS.top) { CHARTS.top.destroy(); CHARTS.top = null; }
+  CHARTS.top = new Chart(ctx, { type:'bar', data:{ labels, datasets:[{ label:'Points', data, borderRadius:8, backgroundColor:'#00d4ff' }]}, options:{indexAxis:'y', plugins:{legend:{display:false}} } });
+}
+
+/* Region breakdown (doughnut + table) */
+function renderRegionBreakdown(){
+  const rows = FILTERED.filter(r=>r.Score!==null);
+  const byReg = {};
+  rows.forEach(r=>{
+    const k = r.Region || "Unknown";
+    if (!byReg[k]) byReg[k] = {points:0,tasks:0};
+    byReg[k].points += (r.Score||0);
+    byReg[k].tasks += 1;
+  });
+  const arr = Object.keys(byReg).map(k=>({region:k,points:byReg[k].points,tasks:byReg[k].tasks,pct: byReg[k].tasks? (byReg[k].points/byReg[k].tasks*100) : 0 }))
+    .sort((a,b)=>b.points-a.points);
+  // chart
+  const ctx = document.getElementById("regionChart").getContext("2d");
+  const labels = arr.map(x=>x.region), data = arr.map(x=>x.points);
+  if (CHARTS.region) { CHARTS.region.destroy(); CHARTS.region = null; }
+  CHARTS.region = new Chart(ctx, { type:'doughnut', data:{ labels, datasets:[{ data, backgroundColor: ['#7c5cff','#00d4ff','#ff9b6c','#2ad27a','#ffd166'] }]}, options:{plugins:{legend:{position:'bottom'}} } });
+  // table
+  const tbody = document.querySelector("#regTable tbody"); tbody.innerHTML = arr.map(r=>`<tr><td>${r.region}</td><td>${r.points}</td><td>${r.tasks}</td><td>${r.pct.toFixed(1)}%</td></tr>`).join("");
+}
+
+/* Leaderboard table */
+function renderLeaderboard(){
+  const rows = FILTERED.filter(r=>r.Score!==null);
+  const byEmp = {};
+  rows.forEach(r=>{
+    const k = r.Employee || "Unknown";
+    if (!byEmp[k]) byEmp[k] = {points:0,tasks:0,region:r.Region};
+    byEmp[k].points += (r.Score||0);
+    byEmp[k].tasks += 1;
+  });
+  const arr = Object.keys(byEmp).map(k=>({emp:k,region:byEmp[k].region,points:byEmp[k].points,tasks:byEmp[k].tasks,pct: byEmp[k].tasks? (byEmp[k].points/byEmp[k].tasks*100):0}))
+    .sort((a,b)=>b.points-a.points);
+  const tbody = document.querySelector("#leaderTbl tbody");
+  tbody.innerHTML = arr.map(r=>`<tr><td>${r.emp}</td><td><span class="tag">${r.region}</span></td><td>${r.points}</td><td>${r.tasks}</td><td>${r.pct.toFixed(1)}%</td></tr>`).join("");
+}
+
+/* Hub leaderboard: average completion by hub */
+function renderHubLeaderboard(){
+  const rows = FILTERED.filter(r=>r.Score!==null);
+  const hubEmpMap = {};
+  // build by hub->employee->counts
+  rows.forEach(r=>{
+    const hub = r.Region || "Unknown";
+    const emp = r.Employee || "Unknown";
+    if (!hubEmpMap[hub]) hubEmpMap[hub] = {};
+    if (!hubEmpMap[hub][emp]) hubEmpMap[hub][emp] = {points:0,tasks:0};
+    hubEmpMap[hub][emp].points += (r.Score||0);
+    hubEmpMap[hub][emp].tasks += 1;
+  });
+  const hubStats = Object.keys(hubEmpMap).map(h=>{
+    const emps = hubEmpMap[h];
+    const arr = Object.keys(emps).map(e=>emps[e]).filter(x=>x.tasks>0);
+    const avg = arr.length ? (arr.reduce((s,x)=>s + (x.points/x.tasks),0) / arr.length * 100) : 0;
+    const totalPoints = arr.reduce((s,x)=>s+x.points,0);
+    const totalTasks = arr.reduce((s,x)=>s+x.tasks,0);
+    return { hub:h, avg, totalPoints, totalTasks };
+  }).sort((a,b)=>b.avg-a.avg);
+  // chart
+  const ctx = document.getElementById("hubChart").getContext("2d");
+  const labels = hubStats.map(x=>x.hub);
+  const data = hubStats.map(x=>Number(x.avg.toFixed(1)));
+  if (CHARTS.hub) { CHARTS.hub.destroy(); CHARTS.hub = null; }
+  CHARTS.hub = new Chart(ctx, { type:'bar', data:{ labels, datasets:[{ label:'Avg Completion %', data, backgroundColor:'#ffd166' }]}, options:{plugins:{legend:{display:false}}, scales:{y:{min:0,max:100}} } });
+  // table
+  const tbody = document.querySelector("#hubTable tbody");
+  tbody.innerHTML = hubStats.map(x=>`<tr><td>${x.hub}</td><td>${x.avg.toFixed(1)}%</td><td>${x.totalPoints}</td><td>${x.totalTasks}</td></tr>`).join("");
+}
+
+/* Employee tab rendering */
+function renderEmployeeView(name){
+  const rows = FILTERED.filter(r=>r.Employee && r.Employee.toLowerCase() === name.toLowerCase());
+  if (!rows.length) {
+    document.getElementById("empSummary").textContent = "No records found for " + name;
+    document.querySelector("#empTable tbody").innerHTML = "";
+    if (CHARTS.empTrend) { CHARTS.empTrend.destroy(); CHARTS.empTrend = null; }
+    return;
+  }
+  const tasks = rows.filter(r=>r.Score!==null).length;
+  const points = rows.reduce((s,r)=> s + (r.Score||0), 0);
+  const pct = tasks ? (points/tasks*100).toFixed(1) : "0.0";
+  const region = rows[0].Region || "";
+  document.getElementById("empSummary").innerHTML = `<div style="font-weight:800">${name}</div><div class="muted">${region}</div><div style="margin-top:8px">Points: <strong>${points}</strong> · Tasks: <strong>${tasks}</strong> · Completion: <strong>${pct}%</strong></div>`;
+
+  // table
+  const body = document.querySelector("#empTable tbody");
+  const sorted = rows.slice().sort((a,b)=> (a.Date||"") > (b.Date||"") ? -1:1);
+  body.innerHTML = sorted.map(r=>`<tr><td>${r.Date||"-"}</td><td>${r.Task||"-"}</td><td>${r.Region||"-"}</td><td>${r.Score===null? "NA": r.Score}</td></tr>`).join("");
+
+  // trend
+  const byDay = {};
+  rows.forEach(r=>{ if (r.Score!==null){ byDay[r.Date] = byDay[r.Date] || {pts:0,tsk:0}; byDay[r.Date].pts += r.Score; byDay[r.Date].tsk += 1;}});
+  const arr = Object.keys(byDay).sort().map(d=>({d, pct: byDay[d].tsk? (byDay[d].pts/byDay[d].tsk*100):0}));
+  const ctx = document.getElementById("empTrend").getContext("2d");
+  const labels = arr.map(x=>x.d), data = arr.map(x=>Number(x.pct.toFixed(1)));
+  if (CHARTS.empTrend) { CHARTS.empTrend.destroy(); CHARTS.empTrend = null; }
+  CHARTS.empTrend = new Chart(ctx, { type:'line', data:{ labels, datasets:[{ label:'Completion %', data, borderColor:'#7c5cff', backgroundColor:'rgba(124,92,255,0.12)', fill:true }]}, options:{scales:{y:{min:0,max:100}}} });
+}
+
+/* UI events */
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", (e)=>{
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+  e.currentTarget.classList.add("active");
+  const tab = e.currentTarget.dataset.tab;
+  document.querySelectorAll("main section").forEach(s => s.style.display = s.id === tab ? "" : "none");
+}));
+
+document.getElementById("fromDate").addEventListener("change", applyFilters);
+document.getElementById("toDate").addEventListener("change", applyFilters);
+document.getElementById("regionFilter").addEventListener("change", applyFilters);
+document.getElementById("empSearch").addEventListener("input", () => { setTimeout(applyFilters, 200); });
+
+document.getElementById("refreshBtn").addEventListener("click", loadData);
+document.getElementById("downloadBtn").addEventListener("click", ()=> window.open(CSV_URL, "_blank"));
+
+document.getElementById("empViewBtn").addEventListener("click", ()=> {
+  const name = document.getElementById("empNameInput").value.trim();
+  if (name) {
+    // switch tab to employee
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+    document.querySelector('.tab[data-tab="employee"]').classList.add("active");
+    document.querySelectorAll("main section").forEach(s => s.style.display = s.id === "employee" ? "" : "none");
+    renderEmployeeView(name);
+  } else alert("Type employee name first");
+});
+document.getElementById("empNameInput").addEventListener("keypress", (e) => { if (e.key === "Enter") document.getElementById("empViewBtn").click(); });
+
+/* Initial load */
+loadData();
+setInterval(loadData, AUTO_REFRESH_MS);
+</script>
+</body>
+</html>
